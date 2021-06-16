@@ -42,7 +42,7 @@ def unicode_to_ascii(s):
                    if unicodedata.category(c) != 'Mn')
 
 
-def preprocess_sentence(w):
+def preprocess_sentence(w):#解析sentence并加上start与end
     w = unicode_to_ascii(w.lower().strip())
 
     # creating a space between a word and the punctuation following it
@@ -89,9 +89,9 @@ def create_dataset(path, num_examples):
     lines = io.open(path, encoding='UTF-8').read().strip().split('\n')
 
     word_pairs = [[preprocess_sentence(w) for w in l.split('\t')] for l in lines[:num_examples]]
-    #nx2
+    # n x 2
 
-    return zip(*word_pairs)  #2xn
+    return zip(*word_pairs)  # 2 x n
 
 
 en, sp = create_dataset(path_to_file, None)
@@ -116,7 +116,7 @@ def tokenize(lang):
 
     tensor = tf.keras.preprocessing.sequence.pad_sequences(tensor,
 
-                                                           padding='post')#n,max
+                                                           padding='post')# n x maxlen
 
     return tensor, lang_tokenizer
 
@@ -131,6 +131,7 @@ def load_dataset(path, num_examples=None):
     target_tensor, targ_lang_tokenizer = tokenize(targ_lang)
 
     return input_tensor, target_tensor, inp_lang_tokenizer, targ_lang_tokenizer
+        #  n x max1       n x max2
 
 
 # Try experimenting with the size of that dataset
@@ -191,7 +192,7 @@ dataset = dataset.batch(BATCH_SIZE, drop_remainder=True)
 
 example_input_batch, example_target_batch = next(iter(dataset))
 
-example_input_batch.shape, example_target_batch.shape
+print(example_input_batch.shape, example_target_batch.shape)
 
 
 class Encoder(tf.keras.Model):
@@ -358,6 +359,7 @@ loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
 
 
 def loss_function(real, pred):
+    #real(n,len) pred(n,len,emb) mask(n,len) loss_(n,len)
     mask = tf.math.logical_not(tf.math.equal(real, 0))
 
     loss_ = loss_object(real, pred)
