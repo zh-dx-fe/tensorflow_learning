@@ -1,8 +1,8 @@
-import keras
-import keras.backend as K
+import tensorflow.keras as keras
+import tensorflow.keras.backend as K
 from data.vocab import TextEncoder
 from transformer.embedding import Embedding
-from keras.layers import Conv1D, Dropout, Add, Input
+from tensorflow.keras.layers import Conv1D, Dropout, Add, Input
 from transformer.layers import MultiHeadAttention, Gelu, LayerNormalization
 
 
@@ -18,7 +18,7 @@ class MultiHeadSelfAttention:
     def __call__(self, x, mask):
         output = self.c_attn(x)
         output = self.attn(output) if mask is None else self.attn([output, mask])
-        return self.c_attn_proj(output)
+        return self.c_attn_proj(output)# batch_size , max_len , output_dim , n_state
 
 
 class PositionWiseFF:

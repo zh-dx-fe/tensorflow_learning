@@ -1,4 +1,4 @@
-import keras
+from tensorflow import keras
 import numpy as np
 from data.vocab import TextEncoder
 from transformer.layers import LayerNormalization
@@ -42,7 +42,7 @@ class Embedding(keras.layers.Layer):
             self.embedding_layer_norm = LayerNormalization(layer_norm_epsilon)
         else:
             self.embedding_layer_norm = None
-        self.layer_norm_epsilon = layer_norm_epsilon
+        self.layer_norm_epsilon = layer_norm_epsilon#防止除零
 
     def compute_output_shape(self, input_shape):
         return input_shape[0][0], input_shape[0][1], self.output_dim
@@ -76,4 +76,4 @@ class Embedding(keras.layers.Layer):
              self.embedding_dropout(token_embedding)])
         if self.embedding_layer_norm:
             summation = self.embedding_layer_norm(summation)
-        return summation
+        return summation # batch_size , max_len , output_dim
