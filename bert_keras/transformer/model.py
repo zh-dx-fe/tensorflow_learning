@@ -10,7 +10,7 @@ class MultiHeadSelfAttention:
     def __init__(self, n_state: int, n_head: int, attention_dropout: float,
                  use_attn_mask: bool, layer_id: int, neg_inf: float) -> None:
         assert n_state % n_head == 0
-        self.c_attn = Conv1D(3 * n_state, 1, name='layer_{}/c_attn'.format(layer_id))
+        self.c_attn = Conv1D(3 * n_state, 1, name='layer_{}/c_attn'.format(layer_id))# batch_size , max_len , 3*n_state
         self.attn = MultiHeadAttention(n_head, n_state, attention_dropout, use_attn_mask,
                                        neg_inf, name='layer_{}/self_attention'.format(layer_id))
         self.c_attn_proj = Conv1D(n_state, 1, name='layer_{}/c_attn_proj'.format(layer_id))
@@ -18,7 +18,7 @@ class MultiHeadSelfAttention:
     def __call__(self, x, mask):
         output = self.c_attn(x)
         output = self.attn(output) if mask is None else self.attn([output, mask])
-        return self.c_attn_proj(output)# batch_size , max_len , output_dim , n_state
+        return self.c_attn_proj(output)# batch_size , max_len , n_state
 
 
 class PositionWiseFF:
@@ -66,7 +66,7 @@ def create_transformer(embedding_dim: int = 768, embedding_dropout: float = 0.1,
     inputs = [tokens, segment_ids, pos_ids]
     embedding_layer = Embedding(embedding_dim, embedding_dropout, vocab_size, max_len, trainable_pos_embedding,
                                 use_one_embedding_dropout, embedding_layer_norm, layer_norm_epsilon)
-    x = embedding_layer(inputs)
+    x = embedding_layer(inputs) # batch_size , max_len , output_dim
     for i in range(num_layers):
         x = EncoderLayer(embedding_dim, num_heads, d_hid, residual_dropout,
                          attention_dropout, use_attn_mask, i, neg_inf, layer_norm_epsilon, accurate_gelu)(x, attn_mask)
