@@ -50,8 +50,8 @@ def conv_feat_layers(inputs, width, training):
         # inputs = layers.conv_layer(inputs, layer_params[2], training)
         inputs = layers.maxpool_layer(inputs, (2, 2), (2, 2), 'valid', 'pool1')
         #
-        params = [[128, 3, (1, 1), 'same', True, True, 'conv1'],
-                  [128, 3, (1, 1), 'same', True, False, 'conv2']]
+        params = [[128, 3, (1, 1), 'same', True, True, 'res1/conv1'],
+                  [128, 3, (1, 1), 'same', True, False, 'res1/conv2']]
         inputs = layers.block_resnet_others(inputs, params, True, training, 'res1')
         #
         inputs = layers.conv_layer(inputs, layer_params[3], training)
@@ -60,8 +60,8 @@ def conv_feat_layers(inputs, width, training):
         # inputs = layers.conv_layer(inputs, layer_params[5], training)
         inputs = layers.maxpool_layer(inputs, (2, 2), (2, 2), 'valid', 'pool2')
         #
-        params = [[256, 3, (1, 1), 'same', True, True, 'conv1'],
-                  [256, 3, (1, 1), 'same', True, False, 'conv2']]
+        params = [[256, 3, (1, 1), 'same', True, True, 'res2/conv1'],
+                  [256, 3, (1, 1), 'same', True, False, 'res2/conv2']]
         inputs = layers.block_resnet_others(inputs, params, True, training, 'res2')
         #
         inputs = layers.conv_layer(inputs, layer_params[6], training)
@@ -70,8 +70,8 @@ def conv_feat_layers(inputs, width, training):
         inputs = layers.conv_layer(inputs, layer_params[8], training)
         # inputs = layers.maxpool_layer(inputs, (3,2), (3,2), 'valid', 'pool3')
         #
-        params = [[512, 3, (1, 1), 'same', True, True, 'conv1'],
-                  [512, 3, (1, 1), 'same', True, False, 'conv2']]
+        params = [[512, 3, (1, 1), 'same', True, True, 'res3/conv1'],
+                  [512, 3, (1, 1), 'same', True, False, 'res3/conv2']]
         inputs = layers.block_resnet_others(inputs, params, True, training, 'res3')
         #
         conv_feat = layers.conv_layer(inputs, layer_params[9], training)
@@ -81,32 +81,32 @@ def conv_feat_layers(inputs, width, training):
     #
     # Calculate resulting sequence length from original image widths
     #
-    two = tf.constant(2, dtype=tf.float32, name='two')
-    #
-    w = tf.cast(width, tf.float32)
-    #
-    w = tf.math.divide(w, two)
-    w = tf.math.ceil(w)
-    #
-    w = tf.math.divide(w, two)
-    w = tf.math.ceil(w)
-    #
-    w = tf.math.divide(w, two)
-    w = tf.math.ceil(w)
-    #
-    w = tf.cast(w, tf.int32)
-    #
-    w = tf.tile(w, [feat_size[1]])
-    #
-    # Vectorize
-    sequence_length = tf.reshape(w, [-1], name='seq_len')
+    # two = tf.constant(2, dtype=tf.float32, name='two')
+    # #
+    # w = tf.cast(width, tf.float32)
+    # #
+    # w = tf.math.divide(w, two)
+    # w = tf.math.ceil(w)
+    # #
+    # w = tf.math.divide(w, two)
+    # w = tf.math.ceil(w)
+    # #
+    # w = tf.math.divide(w, two)
+    # w = tf.math.ceil(w)
+    # #
+    # w = tf.cast(w, tf.int32)
+    # #
+    # w = tf.tile(w, [feat_size[1]])
+    # #
+    # # Vectorize
+    # sequence_length = tf.reshape(w, [-1], name='seq_len')
     #
 
     #
-    return conv_feat, sequence_length  # N, H, W, 512
+    return conv_feat  # N, H, W, 512
 
 
-def rnn_detect_layers(conv_feat, sequence_length, num_anchors):
+def rnn_detect_layers(conv_feat, num_anchors):
     #
     # one-picture features
     conv_feat = tf.squeeze(conv_feat, axis=0)  # squeeze # (32, W, 512)
@@ -123,8 +123,8 @@ def rnn_detect_layers(conv_feat, sequence_length, num_anchors):
     fc_size = 512  # 256, 384, 512
     #
     #
-    rnn1 = layers.rnn_layer(rnn_sequence, sequence_length, rnn_size)
-    rnn2 = layers.rnn_layer(rnn1, sequence_length, rnn_size)
+    rnn1 = layers.rnn_layer(rnn_sequence, rnn_size)
+    rnn2 = layers.rnn_layer(rnn1, rnn_size)
     # rnn3 = rnn_layer(rnn2, sequence_length, rnn_size, 'bdrnn3')
     #
     weight_initializer = tf.keras.initializers.variance_scaling()
@@ -154,6 +154,9 @@ def detect_loss(rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor):
     #
     # loss_cls
     #
+    rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor = tf.cast(rnn_cls,tf.float32),tf.cast(rnn_ver,tf.float32),\
+                                                                    tf.cast(rnn_hor,tf.float32),tf.cast(target_cls,tf.float32),\
+                                                                    tf.cast(target_ver,tf.float32),tf.cast(target_hor,tf.float32)
     rnn_cls_posi = rnn_cls * target_cls
     rnn_cls_neg = rnn_cls - rnn_cls_posi
     #

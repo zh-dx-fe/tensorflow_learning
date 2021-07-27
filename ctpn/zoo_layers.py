@@ -14,7 +14,7 @@ def conv_layer(inputs, params, training):
     outputs = tf.keras.layers.Conv2D(params[0],params[1],params[2],params[3],name=params[6])(inputs)
     #
     if params[4]: # batch_norm
-        outputs = tf.keras.layers.BatchNormalization(training = training, name = params[6]+'/batch_norm')(outputs)
+        outputs = tf.keras.layers.BatchNormalization(name = params[6]+'/batch_norm')(outputs,training = training)
     #
     if params[5]: # relu
         outputs = tf.keras.activations.relu(outputs, name = params[6]+'/relu')
@@ -32,7 +32,7 @@ def conv_layer(inputs, params, training):
 '''
 
 def pad_layer(tensor, paddings, mode='CONSTANT', name=None):
-    return tf.pad(tensor, paddings, mode, name)
+    return tf.pad(tensor, paddings, mode)
 
 # 最大采提层
 def maxpool_layer(inputs, size, stride, padding, name):
@@ -73,13 +73,13 @@ def block_resnet_others(inputs, layer_params, relu, training, name):
         #
         outputs = tf.add(inputs, short_cut, name = 'add')
         #
-        if relu: outputs = tf.keras.activations.relu(outputs, 'last_relu')
+        if relu: outputs = tf.keras.activations.relu(outputs, name = 'last_relu')
         #
     #
     return outputs
 
 
-def rnn_layer(input_sequence, sequence_length, rnn_size):
+def rnn_layer(input_sequence, rnn_size):
     '''build bidirectional (concatenated output) lstm layer'''
     #
     # time_major = True

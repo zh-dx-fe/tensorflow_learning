@@ -64,15 +64,28 @@ class img_data(object):
     def __next__(self):
         with tf.device('/cpu:0'):
             if self.batch_count < self.num_batchs:
-                no = self.i[self.batch_count]
-                img, [height_feat, width_feat], target_cls, target_ver, target_hor = get_image_and_targets(self.samples[no],self.texts[no],self.gts[no],self.anchors,self.dics[no][1]['option'])
-                self.batch_count += 1
-                return img, [height_feat, width_feat], target_cls, target_ver, target_hor
+                try:
+                    no = self.i[self.batch_count]
+                    img, [height_feat, width_feat], target_cls, target_ver, target_hor = \
+                        get_image_and_targets(self.samples[no],self.texts[no],np.array(self.gts[no]),self.anchors,self.dics[no][1]['option'])
+                    self.batch_count += 1
+                    return img, [height_feat, width_feat], target_cls, target_ver, target_hor
+                except:
+                    self.batch_count += 1
+                    return 'error!'
+
+                # no = self.i[self.batch_count]
+                # img, [height_feat, width_feat], target_cls, target_ver, target_hor = get_image_and_targets(
+                #     self.samples[no], self.texts[no], np.array(self.gts[no]), self.anchors, self.dics[no][1]['option'])
+                # self.batch_count += 1
+                # return img, [height_feat, width_feat], target_cls, target_ver, target_hor
 
             else:
                 self.batch_count = 0
                 np.random.shuffle(self.i)
                 raise StopIteration
+    def __len__(self):
+        return self.num_batchs
 
 
 

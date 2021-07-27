@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 import numpy as np
 
 from math import ceil, floor
+import cv2
 
 '''
 #
@@ -14,7 +15,30 @@ dir_contents = dir_data + '/contents'
 #
 '''
 
+def image_preporcess(image, target_size, gt_boxes=None):
 
+    ih, iw    = target_size
+    h,  w, _  = np.array(image).shape
+    if _ == 4:
+        image = np.delete(image, -1, axis=-1)
+    scale = min(iw/w, ih/h)
+    nw, nh  = int(scale * w), int(scale * h)
+    image_resized = image.resize((nw,nh))
+    # image_resized = cv2.resize(image, (nw, nh))
+    image_resized = np.array(image_resized)
+
+    image_paded = np.full(shape=[ih, iw, 3], fill_value=128.0)
+    dw, dh = (iw - nw) // 2, (ih-nh) // 2
+    image_paded[dh:nh+dh, dw:nw+dw, :] = image_resized
+    image_paded = image_paded / 255.
+
+    if gt_boxes is None:
+        return image_paded
+
+    else:
+        gt_boxes[:, [0, 2]] = gt_boxes[:, [0, 2]] * scale + dw
+        gt_boxes[:, [1, 3]] = gt_boxes[:, [1, 3]] * scale + dh
+        return image_paded, gt_boxes
 
 
 
@@ -177,17 +201,20 @@ def get_image_and_targets(img_file, txt_list, gts, anchor_heights, orientation):
     BytesIOObj.write(response)
     img = Image.open(BytesIOObj)
     if orientation == '底部朝左':
-        img = img.rotate(270, expand=True)
+        img = img.rotate(90, expand=True)
     elif orientation == '底部朝上':
         img = img.rotate(180, expand=True)
     elif orientation == '底部朝右':
-        img = img.rotate(90, expand=True)
-    h1 , w1 = img.size
-    img = img.resize((408,int(ceil(w1*(408/h1)))))
-
-    img_data = np.array(img, dtype=np.float32) / 255
-    # height, width, channel
+        img = img.rotate(270, expand=True)
+    # w1, h1 = img.size
+    # d_h = 408/h1
+    # img = img.resize((int(ceil(w1*d_h)),408))
+    # gts = np.ceil(np.array(gts) * d_h).astype(int)
     #
+    # img_data = np.array(img, dtype=np.float32) / 255
+    # # height, width, channel
+    # #
+    img_data,gts = image_preporcess(img,[408,408],np.array(gts))
     img_data = img_data[:, :, 0:3]  # rgba
     #
 
@@ -196,6 +223,7 @@ def get_image_and_targets(img_file, txt_list, gts, anchor_heights, orientation):
 
     # targets
     img_size = img_data.shape  # height, width, channel
+    img_data = np.expand_dims(img_data,0)
     #
     # ///2, ///2, //3, -2
     # ///2, ///2, ///2,
@@ -257,7 +285,7 @@ def get_image_and_targets(img_file, txt_list, gts, anchor_heights, orientation):
             target_hor[h, w] = hor
             #
     #
-    return [img_data], [height_feat, width_feat], target_cls, target_ver, target_hor
+    return img_data, [height_feat, width_feat], target_cls, target_ver, target_hor
     #
 
 
