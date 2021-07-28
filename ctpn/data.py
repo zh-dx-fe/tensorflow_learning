@@ -75,8 +75,9 @@ class img_data(object):
                     return 'error!'
 
                 # no = self.i[self.batch_count]
-                # img, [height_feat, width_feat], target_cls, target_ver, target_hor = get_image_and_targets(
-                #     self.samples[no], self.texts[no], np.array(self.gts[no]), self.anchors, self.dics[no][1]['option'])
+                # img, [height_feat, width_feat], target_cls, target_ver, target_hor = \
+                #     get_image_and_targets(self.samples[no], self.texts[no], np.array(self.gts[no]), self.anchors,
+                #                           self.dics[no][1]['option'])
                 # self.batch_count += 1
                 # return img, [height_feat, width_feat], target_cls, target_ver, target_hor
 

@@ -153,28 +153,18 @@ def rnn_detect_layers(conv_feat, num_anchors):
 def detect_loss(rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor):
     #
     # loss_cls
-    #
-    rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor = tf.cast(rnn_cls,tf.float32),tf.cast(rnn_ver,tf.float32),\
-                                                                    tf.cast(rnn_hor,tf.float32),tf.cast(target_cls,tf.float32),\
-                                                                    tf.cast(target_ver,tf.float32),tf.cast(target_hor,tf.float32)
-    rnn_cls_posi = rnn_cls * target_cls
-    rnn_cls_neg = rnn_cls - rnn_cls_posi
-    #
-    pow_posi = tf.square(rnn_cls_posi - target_cls)
-    pow_neg = tf.square(rnn_cls_neg)
-    #
-    mod_posi = tf.pow(pow_posi / 0.24, 5)  # 0.3, 0.2,     0.5,0.4
-    mod_neg = tf.pow(pow_neg / 0.24, 5)  # 0.7, 0.6,
-    mod_con = tf.pow(0.25 / 0.2, 5)
-    #
-    num_posi = tf.reduce_sum(target_cls) / 2
-    num_neg = tf.reduce_sum(target_cls + 1) / 2 - num_posi * 2
-    #
-    loss_cls_posi = tf.reduce_sum(pow_posi * mod_posi) / 2
-    loss_cls_neg = tf.reduce_sum(pow_neg * mod_neg) / 2
-    #
-    loss_cls = loss_cls_posi / num_posi + loss_cls_neg / num_neg
-    #
+    cls_pred_shape = tf.shape(rnn_cls)  # cls_pred shape(32,51,2A) ->shape(4,?)
+    cls_pred_reshape = tf.reshape(rnn_cls, [cls_pred_shape[0], cls_pred_shape[1], -1, 2])  # shape(32,51,A,2)
+    rpn_cls_score = tf.reshape(cls_pred_reshape, [-1, 2])  # (32*51*A, 2)
+    cls_true_reshape = tf.reshape(target_cls, [cls_pred_shape[0], cls_pred_shape[1], -1, 2])  # shape(32,51,A,2)
+    true_cls_score = tf.reshape(cls_true_reshape, [-1, 2])  # (32*51*A, 2)
+    mask = tf.reduce_sum(true_cls_score,axis=-1) == 1
+    mask = mask.numpy()
+    loss_cls = tf.reduce_mean(tf.keras.losses.categorical_crossentropy(true_cls_score[mask],rpn_cls_score[mask]))
+
+
+
+
     # loss reg
     #
     rnn_ver_posi = rnn_ver * target_cls

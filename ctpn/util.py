@@ -5,7 +5,9 @@ from PIL import Image, ImageDraw
 import numpy as np
 
 from math import ceil, floor
+import math
 import cv2
+import copy
 
 '''
 #
@@ -14,6 +16,81 @@ dir_images = dir_data + '/images'
 dir_contents = dir_data + '/contents'
 #
 '''
+
+
+
+def get_small_gts(gts):
+    sm_b_l = []
+    for gt in gts:
+        sm_bs = []
+        xmin, ymin, xmax, ymax = gt
+        grid_left = int(xmin//8)
+        grid_right = int(xmax//8)
+        sm_bs.append([xmin,ymin,(grid_left+1)*8,ymax])
+        for m in range(grid_left+1,grid_right):
+            sm_bs.append([m*8,ymin,(m+1)*8,ymax])
+        sm_bs.append([grid_right*8,ymin,xmax,ymax])
+        sm_b_l.extend(sm_bs)
+    return sm_b_l
+
+
+
+def bbox_overlaps(boxes,query_boxes):
+    """
+    Parameters
+    ----------
+    boxes: (N, 4) ndarray of float
+    query_boxes: (K, 4) ndarray of float
+    Returns
+    -------
+    overlaps: (N, K) ndarray of overlap between boxes and query_boxes
+    """
+    N = boxes.shape[0]
+    K = query_boxes.shape[0]
+    overlaps = np.zeros((N, K), dtype=float)
+
+    for k in range(K):
+        box_area = (
+            (query_boxes[k, 2] - query_boxes[k, 0] + 1) *
+            (query_boxes[k, 3] - query_boxes[k, 1] + 1)
+        )
+        for n in range(N):
+            iw = (
+                min(boxes[n, 2], query_boxes[k, 2]) -
+                max(boxes[n, 0], query_boxes[k, 0]) + 1
+            )
+            if iw > 0:
+                ih = (
+                    min(boxes[n, 3], query_boxes[k, 3]) -
+                    max(boxes[n, 1], query_boxes[k, 1]) + 1
+                )
+                if ih > 0:
+                    ua = float(
+                        (boxes[n, 2] - boxes[n, 0] + 1) *
+                        (boxes[n, 3] - boxes[n, 1] + 1) +
+                        box_area - iw * ih
+                    )
+                    overlaps[n, k] = iw * ih / ua
+    return overlaps
+
+# def anchor_target(gts, anchors):
+#     _anchors = np.vstack([np.full([len(anchors)], 8), np.array(anchors), np.full([len(anchors)], 8), np.array(anchors)]).transpose()
+#     _num_anchors = _anchors.shape[0]
+#     height, width = 32,51
+#     # 1. Generate proposals from bbox deltas and shifted anchors
+#     shift_x = np.arange(0, width) * 8  # (51,) (0, 408, 8)
+#     shift_y = np.arange(2, height+2) * 12  # (32,) (24, 408, 12)
+#     shift_x, shift_y = np.meshgrid(shift_x, shift_y)  # in W H order # (51, 32)
+#     # K is H x W
+#     shifts = np.vstack((shift_x.ravel(), shift_y.ravel(),
+#                         shift_x.ravel(), shift_y.ravel())).transpose()  # 生成feature-map和真实image上anchor之间的偏移量 (H*W, 4)
+#     A = _num_anchors  # 4个anchor
+#     K = shifts.shape[0]  # feature-map的宽乘高的大小 # H*W
+#     all_anchors = (_anchors.reshape((1, A, 4)) +
+#                    shifts.reshape((1, K, 4)).transpose((1, 0, 2)))  # 相当于复制宽高的维度，然后相加 # (K, A, 4)
+#     all_anchors = all_anchors.reshape((K * A, 4))  # (K*A, 4)
+#     total_anchors = int(K * A)
+
 
 def image_preporcess(image, target_size, gt_boxes=None):
 
@@ -128,33 +205,39 @@ def calculate_targets_at(anchor_center, txt_list, gts, anchor_heights):
             #
         #
         break
-    #
+
+
+
+    cls = np.zeros([len(anchor_heights),2])  # (A, 2)
+    ver = np.zeros([len(anchor_heights),2])
+    hor = np.zeros([len(anchor_heights),2])
+    # 计算所有负样本
+    anchors_ = np.array([[wc-4, hc-ahh/2, wc+4, hc+ahh/2] for ahh in anchor_heights])
+    gts_small = np.array(get_small_gts(gts))
+    overlaps = bbox_overlaps(anchors_.astype(float), gts_small.astype(float))  # (A, G)
+    argmax_overlaps = overlaps.argmax(axis=1)  # (A,) #找到和每一个gtbox，overlap最大的那个anchor
+    max_overlaps = overlaps[np.arange(len(anchor_heights)), argmax_overlaps]  # (A,)
+    cls[max_overlaps < 0.3,:] = np.array([0,1])  # 标注负样本
+    for i in range(len(anchors_)):
+        if anchors_[i][1] < 0 or anchors_[i][3] >= 408:
+            cls[i,:] = 0
+
     # no text
     if maxIoU <= 0:  #
         #
-        num_anchors = len(anchor_heights)
-
-        # (k, 2)
-        cls = [0, 1] * num_anchors
-        ver = [0, 0] * num_anchors
-        hor = [0, 0] * num_anchors
         #
-        return cls, ver, hor
+        return cls.reshape((-1)), ver.reshape((-1)), hor.reshape((-1))
     #
     # text
-    cls = []
-    ver = []
-    hor = []
+
     #
     for idx, ah in enumerate(anchor_heights):
         #
         if not idx == anchor_posi:
-            cls.extend([0, 1])  #
-            ver.extend([0, 1])
-            hor.extend([0, 1])
+
             continue
         #
-        cls.extend([1, 0])  #
+        cls[idx,:] = np.array([1, 0])  #标注正样本
         #
         half_ah = ah // 2
         half_aw = anchor_width // 2
@@ -180,12 +263,12 @@ def calculate_targets_at(anchor_center, txt_list, gts, anchor_heights):
         #
         # print(ratio_bbox)
         #
-        ver.extend([ratio_bbox[1], ratio_bbox[3]])
-        hor.extend([ratio_bbox[0], ratio_bbox[2]])
+        ver[idx,:] = np.array([ratio_bbox[1], ratio_bbox[3]])
+        hor[idx,:] = np.array([ratio_bbox[0], ratio_bbox[2]])
         #
     # list_len = 2k
     # cls表示2k个prob,ver和hor分别表示竖直方向和水平方向的回归率
-    return cls, ver, hor
+    return cls.reshape((-1)), ver.reshape((-1)), hor.reshape((-1))
     #
 
 
@@ -214,9 +297,9 @@ def get_image_and_targets(img_file, txt_list, gts, anchor_heights, orientation):
     # img_data = np.array(img, dtype=np.float32) / 255
     # # height, width, channel
     # #
-    img_data,gts = image_preporcess(img,[408,408],np.array(gts))
+    img_data,gts = image_preporcess(img,[408,408],np.array(gts))  # (408, 408, 3), (G, 4)
     img_data = img_data[:, :, 0:3]  # rgba
-    #
+
 
     # texts
     #
@@ -416,58 +499,4 @@ def draw_text_boxes(img_file, text_bbox):
     #
 
 
-#
-if __name__ == '__main__':
-    #
-    print('draw target bbox ... ')
-    #
-    import model_detect_meta as meta
-
-    #
-    list_imgs = get_files_with_ext(meta.dir_images_valid, 'png')
-    #
-    curr = 0
-    NumImages = len(list_imgs)
-    #
-    # valid_result save-path
-    if not os.path.exists(meta.dir_results_valid): os.mkdir(meta.dir_results_valid)
-    #
-    for img_file in list_imgs:
-        #
-        txt_file = get_target_txt_file(img_file)
-        #
-        img_data, feat_size, target_cls, target_ver, target_hor = \
-            get_image_and_targets(img_file, txt_file, meta.anchor_heights)
-        #
-        curr += 1
-        print('curr: %d / %d' % (curr, NumImages))
-        #
-        filename = os.path.basename(img_file)
-        arr_str = os.path.splitext(filename)
-        #
-        # image
-        '''
-        r = Image.fromarray(img_data[0][:,:,0] *255).convert('L')
-        g = Image.fromarray(img_data[0][:,:,1] *255).convert('L')
-        b = Image.fromarray(img_data[0][:,:,2] *255).convert('L')
-        #
-        file_target = os.path.join(meta.dir_results_valid, 'target_' +arr_str[0] + '.png')
-        img_target = Image.merge("RGB", (r, g, b))
-        img_target.save(file_target)
-        '''
-
-        file_target = os.path.join(meta.dir_results_valid, 'target_' + arr_str[0] + '.png')
-        img_target = Image.fromarray(np.uint8(img_data[0] * 255))  # .convert('RGB')
-        img_target.save(file_target)
-
-        #
-        # trans
-        text_bbox, conf_bbox = trans_results(target_cls, target_ver, target_hor, \
-                                             meta.anchor_heights, meta.threshold)
-        #
-        draw_text_boxes(file_target, text_bbox)
-        #
-    #
-    print('draw end.')
-    #
 
