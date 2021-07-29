@@ -151,7 +151,7 @@ def rnn_detect_layers(conv_feat, num_anchors):
 
 
 def detect_loss(rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor):
-    #
+
     # loss_cls
     cls_pred_shape = tf.shape(rnn_cls)  # cls_pred shape(32,51,2A) ->shape(4,?)
     cls_pred_reshape = tf.reshape(rnn_cls, [cls_pred_shape[0], cls_pred_shape[1], -1, 2])  # shape(32,51,A,2)
@@ -162,36 +162,29 @@ def detect_loss(rnn_cls, rnn_ver, rnn_hor, target_cls, target_ver, target_hor):
     mask = mask.numpy()
     loss_cls = tf.reduce_mean(tf.keras.losses.categorical_crossentropy(true_cls_score[mask],rpn_cls_score[mask]))
 
-
-
-
     # loss reg
-    #
-    rnn_ver_posi = rnn_ver * target_cls
-    rnn_hor_posi = rnn_hor * target_cls
-    #
-    rnn_ver_neg = rnn_ver - rnn_ver_posi
-    rnn_hor_neg = rnn_hor - rnn_hor_posi
-    #
-    pow_ver_posi = tf.square(rnn_ver_posi - target_ver)
-    pow_hor_posi = tf.square(rnn_hor_posi - target_hor)
-    #
-    pow_ver_neg = tf.square(rnn_ver_neg)
-    pow_hor_neg = tf.square(rnn_hor_neg)
-    #
-    loss_ver_posi = tf.reduce_sum(pow_ver_posi * mod_con) / num_posi
-    loss_hor_posi = tf.reduce_sum(pow_hor_posi * mod_con) / num_posi
-    #
-    loss_ver_neg = tf.reduce_sum(pow_ver_neg * mod_neg) / num_neg
-    loss_hor_neg = tf.reduce_sum(pow_hor_neg * mod_neg) / num_neg
-    #
-    loss_ver = loss_ver_posi + loss_ver_neg
-    loss_hor = loss_hor_posi + loss_hor_neg
-    #
 
-    #
-    loss = tf.add(loss_cls, loss_ver + loss_hor, name='loss')
-    #
+    mask_reg = tf.equal(true_cls_score[:,0],1)
 
-    #
+    ver_true = tf.reshape(target_ver, [32,51, -1, 2])  # shape(32,51,A,2)
+    hor_true = tf.reshape(target_hor, [32,51, -1, 2])  # shape(32,51,A,2)
+    ver_true = tf.reshape(ver_true, [-1, 2])  # (32*51*A, 2)
+    hor_true = tf.reshape(hor_true, [-1, 2])  # (32*51*A, 2)
+
+    ver_pred = tf.reshape(rnn_ver, [32, 51, -1, 2])  # shape(32,51,A,2)
+    hor_pred = tf.reshape(rnn_hor, [32, 51, -1, 2])  # shape(32,51,A,2)
+    ver_pred = tf.reshape(ver_pred, [-1, 2])  # (32*51*A, 2)
+    hor_pred = tf.reshape(hor_pred, [-1, 2])  # (32*51*A, 2)
+
+    delta_ver = tf.cast(ver_true[mask_reg],tf.float32) - tf.cast(ver_pred[mask_reg],tf.float32)
+    delta_hor = tf.cast(hor_true[mask_reg],tf.float32) - tf.cast(hor_pred[mask_reg],tf.float32)
+    smooth_ver = tf.reduce_mean(smooth_l1_dist(delta_ver))
+    smooth_hor = tf.reduce_mean(smooth_l1_dist(delta_hor))
+
+    loss = smooth_hor + smooth_ver + loss_cls
     return loss
+
+def smooth_l1_dist(deltas, sigma2=9.0):
+    deltas_abs = tf.abs(deltas)
+    smoothL1_sign = tf.cast(tf.less(deltas_abs, 1.0 / sigma2), tf.float32)
+    return tf.square(deltas) * 0.5 * sigma2 * smoothL1_sign + (deltas_abs - 0.5 / sigma2) * tf.abs(smoothL1_sign - 1)
