@@ -498,5 +498,28 @@ def draw_text_boxes(img_file, text_bbox):
     img_draw.save(img_file)
     #
 
+def get_img_through_gt(img_path,gt,orientation):
+    xmin, ymin, xmax, ymax = gt
+    response = requests.get(img_path)
+    response = response.content
+
+    BytesIOObj = BytesIO()
+    BytesIOObj.write(response)
+    img = Image.open(BytesIOObj)
+    if orientation == '底部朝左':
+        img = img.rotate(90, expand=True)
+    elif orientation == '底部朝上':
+        img = img.rotate(180, expand=True)
+    elif orientation == '底部朝右':
+        img = img.rotate(270, expand=True)
+    img = np.array(img)
+    img = img[:, :, 0:3]  # rgba
+    img = img[int(ceil(ymin)):int(floor(ymax)), int(ceil(xmin)):int(floor(xmax)), :]
+    return img
+
+
+
+
+
 
 

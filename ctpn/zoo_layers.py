@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def conv_layer(inputs, params, training):
+def conv_layer(inputs, params, training = True):
     '''define a convolutional layer with params'''
     #
     # 输入数据维度为 4-D tensor: [batch_size, width, height, channels]
@@ -17,7 +17,7 @@ def conv_layer(inputs, params, training):
         outputs = tf.keras.layers.BatchNormalization(name = params[6]+'/batch_norm')(outputs,training = training)
     #
     if params[5]: # relu
-        outputs = tf.keras.activations.relu(outputs, name = params[6]+'/relu')
+        outputs = tf.keras.activations.relu(outputs)
     #
     return outputs
 
@@ -73,7 +73,8 @@ def block_resnet_others(inputs, layer_params, relu, training, name):
         #
         outputs = tf.add(inputs, short_cut, name = 'add')
         #
-        if relu: outputs = tf.keras.activations.relu(outputs, name = 'last_relu')
+        if relu: outputs = tf.keras.activations.relu(outputs
+                                                    )
         #
     #
     return outputs
