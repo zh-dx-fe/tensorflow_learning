@@ -49,7 +49,7 @@ def train_step(image_data, target, label_length, logit_length):
         # writing summary data
         with writer.as_default():
             tf.summary.scalar("lr", optimizer.lr, step=global_steps)
-            tf.summary.scalar("loss/total_loss", total_loss, step=global_steps)
+            tf.summary.scalar("loss/total_loss", total_loss.numpy()[0], step=global_steps)
 
         writer.flush()
 
@@ -61,8 +61,8 @@ for epoch in range(30):
             img = change_shape_to_32(img)
             label_length = sequence.shape[0]
             sequence = np.array(sequence).T
-            logit_length = img.shape[1]//4
-            train_step(img,sequence,label_length,logit_length)
+            logit_length = int(img.shape[1]//4)
+            train_step(img,sequence,[label_length],[logit_length])
         if int(global_steps.value().numpy()) % 100 == 0:
             model.save_weights("E:/github_zdxf/weights/crnn+ctc_weights/{}_{}.h5".format(epoch,int(global_steps.value().numpy())))
     model.save_weights("E:/github_zdxf/weights/crnn+ctc_weights/{}.h5".format(epoch))
